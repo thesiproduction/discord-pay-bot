@@ -1,29 +1,31 @@
+const { getBalance, setBalance } = require('../utils/db');
+
 module.exports = {
-  name: "pay",
-  description: "Pay another user some coins",
-  async execute(message, args, db) {
-    const user = message.mentions.users.first();
+  name: 'pay',
+  description: 'Pay another user',
+  async execute(message, args) {
+    const senderId = message.author.id;
+    const target = message.mentions.users.first();
     const amount = parseInt(args[1]);
 
-    if (!user || isNaN(amount)) {
-      return message.reply("Usage: `fd pay @user <amount>`");
+    if (!target) {
+      return message.reply('❌ Please mention a valid user to pay.');
     }
 
-    if (user.id === message.author.id) {
-      return message.reply("❌ You cannot pay yourself.");
+    if (isNaN(amount) || amount <= 0) {
+      return message.reply('❌ Please enter a valid amount.');
     }
 
-    // TODO: replace this with real DB logic from db.js
-    // Example with fake balance system
-    let senderBalance = 100; // demo
+    const senderBalance = await getBalance(senderId);
+
     if (senderBalance < amount) {
       return message.reply("💸 You don’t have enough coins.");
     }
 
-    // Deduct and add balance in DB here
-    // await db.addBalance(user.id, amount);
-    // await db.subtractBalance(message.author.id, amount);
+    await setBalance(senderId, senderBalance - amount);
+    const targetBalance = await getBalance(target.id);
+    await setBalance(target.id, targetBalance + amount);
 
-    return message.reply(`✅ You paid ${amount} coins to ${user.username}!`);
+    message.reply(`✅ Paid ${amount} Fundra Currency to ${target.username}.`);
   },
 };
