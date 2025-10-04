@@ -1,22 +1,26 @@
-const { getBalance, addBalance, setLastDaily } = require("../utils/db");
+const { addBalance, getLastDaily, setLastDaily, getBalance } = require('../utils/db');
 
 module.exports = {
-  name: "daily",
+  name: 'daily',
   async execute(message) {
-    const bal = await getBalance(message.author.id);
-    const now = Date.now();
-    const cooldown = 24 * 60 * 60 * 1000; // 24h
-    if (bal.last_daily && now - new Date(bal.last_daily).getTime() < cooldown) {
-      const remaining = cooldown - (now - new Date(bal.last_daily).getTime());
-      const hours = Math.floor(remaining / (1000 * 60 * 60));
-      const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-      return message.reply(`⏳ You can claim daily again in **${hours}h ${minutes}m**`);
+    const userId = message.author.id;
+    const now = new Date();
+    const lastDaily = await getLastDaily(userId);
+
+    if (lastDaily) {
+      const diff = now - new Date(lastDaily);
+      const hours = 24 - Math.floor(diff / (1000 * 60 * 60));
+      if (diff < 24 * 60 * 60 * 1000) {
+        return message.reply(`⏳ You already claimed your daily reward! Come back in **${hours}h**.`);
+      }
     }
 
-    const reward = Math.floor(Math.random() * 901) + 100; // 100–1000
-    await addBalance(message.author.id, reward);
-    await setLastDaily(message.author.id, now);
+    const reward = Math.floor(Math.random() * (1000 - 100 + 1)) + 100;
+    await addBalance(userId, reward);
+    await setLastDaily(userId, now.toISOString());
 
-    message.reply(`🎁 You claimed your daily reward of **${reward.toLocaleString("en-US")} Fundra Currency**!`);
-  },
+    const newBalance = await getBalance(userId);
+
+    message.reply(`🎁 You claimed your daily reward of **${reward} FC**!\n💰 New Balance: **${newBalance} FC**`);
+  }
 };
