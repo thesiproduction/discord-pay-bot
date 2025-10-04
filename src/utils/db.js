@@ -1,79 +1,42 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
-
+const { createClient } = require("@supabase/supabase-js");
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 async function getBalance(userId) {
   const { data, error } = await supabase
-    .from('balances')
-    .select('balance')
-    .eq('user_id', userId)
+    .from("balances")
+    .select("amount, last_daily")
+    .eq("user_id", userId)
     .single();
 
-  if (error && error.code !== 'PGRST116') {
-    console.error(error);
-    return 0;
+  if (error && error.code !== "PGRST116") {
+    console.error("getBalance error:", error);
+    return { amount: 0, last_daily: null };
   }
-
-  return data ? data.balance : 0;
+  return data || { amount: 0, last_daily: null };
 }
 
 async function setBalance(userId, amount) {
-  const { data, error } = await supabase
-    .from('balances')
-    .upsert({ user_id: userId, balance: amount }, { onConflict: 'user_id' })
-    .select();
+  const { error } = await supabase
+    .from("balances")
+    .upsert({ user_id: userId, amount }, { onConflict: ["user_id"] });
 
-  if (error) {
-    console.error(error);
-  }
-
-  return data ? data[0].balance : amount;
+  if (error) console.error("setBalance error:", error);
 }
 
 async function addBalance(userId, amount) {
-  const current = await getBalance(userId);
-  return await setBalance(userId, current + amount);
+  const bal = await getBalance(userId);
+  await setBalance(userId, bal.amount + amount);
 }
 
-async function canClaimDaily(userId) {
-  const { data, error } = await supabase
-    .from('balances')
-    .select('last_daily')
-    .eq('user_id', userId)
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    console.error(error);
-    return { allowed: false };
-  }
-
-  if (!data || !data.last_daily) {
-    return { allowed: true };
-  }
-
-  const lastClaim = new Date(data.last_daily);
-  const now = new Date();
-
-  const diff = now - lastClaim;
-  const hoursPassed = diff / (1000 * 60 * 60);
-
-  return { allowed: hoursPassed >= 24 };
+async function removeBalance(userId, amount) {
+  const bal = await getBalance(userId);
+  await setBalance(userId, Math.max(0, bal.amount - amount));
 }
 
-async function updateDaily(userId) {
-  const { error } = await supabase
-    .from('balances')
-    .update({ last_daily: new Date().toISOString() })
-    .eq('user_id', userId);
-
-  if (error) console.error(error);
+async function setLastDaily(userId, timestamp) {
+  await supabase
+    .from("balances")
+    .upsert({ user_id: userId, last_daily: timestamp }, { onConflict: ["user_id"] });
 }
 
-module.exports = {
-  getBalance,
-  setBalance,
-  addBalance,
-  canClaimDaily,
-  updateDaily
-};
+module.exports = { getBalance, setBalance, addBalance, removeBalance, setLastDaily };
