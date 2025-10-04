@@ -17,7 +17,7 @@ const client = new Client({
 // Command collection
 client.commands = new Map();
 
-// Load all commands from ./commands folder
+// Load commands from /commands folder
 const commandFiles = fs.readdirSync('./src/commands').filter(file => file.endsWith('.js'));
 for (const file of commandFiles) {
   const command = require(`./commands/${file}`);
@@ -32,25 +32,28 @@ client.once('clientReady', () => {
 
 // Message handler
 client.on('messageCreate', async (message) => {
+  // Ignore bots
   if (message.author.bot) return;
+
+  // Ignore if no prefix
   if (!message.content.startsWith(prefix)) return;
 
-  // Parse command
+  // Split command
   const args = message.content.slice(prefix.length).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
+
+  console.log(`📩 Command received: ${commandName} Args: ${args}`);
 
   const command = client.commands.get(commandName);
   if (!command) return;
 
   try {
-    // Pass `null` for db for now (you can wire db.js later)
-    await command.execute(message, args, null);
+    await command.execute(message, args, null); // pass db later
   } catch (error) {
     console.error(error);
-    message.reply("⚠️ There was an error executing that command.");
+    message.reply("⚠️ Error executing that command.");
   }
 });
 
 // Login
 client.login(process.env.TOKEN);
-
