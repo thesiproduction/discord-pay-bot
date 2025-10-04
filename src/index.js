@@ -1,3 +1,4 @@
+console.log("🚀 Index.js is running (latest code)!");
 require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
