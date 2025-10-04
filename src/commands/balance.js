@@ -1,10 +1,20 @@
+const { SlashCommandBuilder } = require("discord.js");
 const { getBalance } = require("../utils/db");
 
 module.exports = {
-  name: "balance",
-  description: "Check your Fundra Currency balance",
-  async execute(message) {
-    const bal = await getBalance(message.author.id);
-    message.reply(`💰 You have **${bal} FC** (Fundra Currency)`);
+  data: new SlashCommandBuilder()
+    .setName("balance")
+    .setDescription("Check your Fundra currency balance"),
+
+  async execute(interaction) {
+    const balance = await getBalance(interaction.user.id);
+
+    if (balance === null) {
+      await interaction.reply("⚠️ Error fetching your balance. Try again later.");
+    } else {
+      await interaction.reply(
+        `💰 Your balance: **${balance} Fundra Currency**`
+      );
+    }
   },
 };
