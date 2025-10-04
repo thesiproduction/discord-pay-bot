@@ -1,10 +1,13 @@
-const { getBalance } = require("../utils/db");
+const { getBalance } = require('../utils/db');
 
 module.exports = {
-  name: "balance",
+  name: 'balance',
   async execute(message) {
-    const bal = await getBalance(message.author.id);
-    const formatted = bal.amount.toLocaleString("en-US");
-    message.reply(`💰 Your balance: **${formatted} Fundra Currency**`);
-  },
+    const userId = message.author.id;
+    let balance = await getBalance(userId);
+
+    if (!balance) balance = 0; // prevent undefined
+
+    message.reply(`💰 Your balance: **${balance.toLocaleString()} Fundra Currency**`);
+  }
 };
