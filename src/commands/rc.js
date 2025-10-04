@@ -1,62 +1,80 @@
-const { getBalance, addBalance, removeBalance } = require('../utils/db');
+const { EmbedBuilder } = require("discord.js");
+const db = require("../db");
 
 module.exports = {
-  name: 'rc',
+  name: "rc",
+  description: "Play the random card guessing game (easier version)",
   async execute(message, args) {
     const userId = message.author.id;
-    const amount = parseInt(args[0]);
+    const bet = parseInt(args[0]);
 
-    if (!amount || isNaN(amount) || amount <= 0) {
-      return message.reply('❌ Please provide a valid bet amount.');
+    if (isNaN(bet) || bet <= 0) {
+      return message.reply("⚠️ Please enter a valid bet amount!");
     }
 
-    const balance = await getBalance(userId);
-    if (balance < amount) {
-      return message.reply('💸 You don’t have enough coins to play.');
+    let balance = await db.getBalance(userId);
+    if (balance < bet) {
+      return message.reply("❌ You don’t have enough balance for this bet!");
     }
 
-    // deduct bet immediately
-    await removeBalance(userId, amount);
+    // Shuffle animation
+    const shuffleEmbed = new EmbedBuilder()
+      .setColor("Red")
+      .setTitle("🔮 Shuffling the cards...")
+      .setDescription("Numbers are flashing quickly between 1–10...");
 
-    // hidden card
-    const hiddenNumber = Math.floor(Math.random() * 10) + 1;
+    const msg = await message.channel.send({ embeds: [shuffleEmbed] });
 
-    // shuffle animation (fake cards)
-    const shuffleMsg = await message.reply('🎴 Shuffling cards...');
-    let count = 0;
-    const shuffleInterval = setInterval(async () => {
-      count++;
-      const fakeNum = Math.floor(Math.random() * 10) + 1;
-      await shuffleMsg.edit(`🎴 Shuffling... Card shows: **${fakeNum}**`);
-      if (count >= 5) { // stop after 5 flips
-        clearInterval(shuffleInterval);
-        shuffleMsg.edit('🎴 Cards shuffled! Guess a number between **1–10** in the next 10 seconds.');
-      }
-    }, 1000);
+    setTimeout(async () => {
+      // Real card
+      const card = Math.floor(Math.random() * 10) + 1;
+      const group = card % 2 === 0 ? [2, 4, 6, 8, 10] : [1, 3, 5, 7, 9];
 
-    // collect user guess
-    const filter = m => m.author.id === userId;
-    const collector = message.channel.createMessageCollector({ filter, time: 10000, max: 1 });
+      const resultEmbed = new EmbedBuilder()
+        .setColor("Yellow")
+        .setTitle("🎴 Guess the card!")
+        .setDescription(
+          `The hidden card is among these numbers: **${group.join(
+            ", "
+          )}**\n\nType your guess in chat!`
+        );
 
-    collector.on('collect', async (msg) => {
-      const guess = parseInt(msg.content);
-      if (!guess || guess < 1 || guess > 10) {
-        return msg.reply('❌ Invalid guess! Must be a number between 1 and 10.');
-      }
+      await msg.edit({ embeds: [resultEmbed] });
 
-      if (guess === hiddenNumber) {
-        const winnings = amount * 2;
-        await addBalance(userId, winnings);
-        msg.reply(`🎉 Correct! The hidden card was **${hiddenNumber}**.\n✅ You won **${winnings} FC**!`);
-      } else {
-        msg.reply(`😢 Wrong! The hidden card was **${hiddenNumber}**.\n❌ You lost your bet of **${amount} FC**.`);
-      }
-    });
+      // Collect user guess
+      const filter = (m) =>
+        m.author.id === message.author.id &&
+        group.includes(parseInt(m.content));
 
-    collector.on('end', collected => {
-      if (collected.size === 0) {
-        message.reply(`⌛ Time ran out! The hidden card was **${hiddenNumber}**. You lost your bet of ${amount} FC.`);
-      }
-    });
-  }
+      const collector = message.channel.createMessageCollector({
+        filter,
+        time: 15000,
+        max: 1,
+      });
+
+      collector.on("collect", async (m) => {
+        const guess = parseInt(m.content);
+
+        if (guess === card) {
+          await db.addBalance(userId, bet * 2); // Win 2x total
+          balance += bet * 2;
+          return message.reply(
+            `✅ Correct! The card was **${card}**. You won **${bet * 2} FC**! New Balance: ${balance} FC`
+          );
+        } else {
+          await db.addBalance(userId, -bet);
+          balance -= bet;
+          return message.reply(
+            `❌ Wrong! The card was **${card}**. You lost **${bet} FC**. New Balance: ${balance} FC`
+          );
+        }
+      });
+
+      collector.on("end", (collected) => {
+        if (collected.size === 0) {
+          message.reply("⌛ You didn’t guess in time!");
+        }
+      });
+    }, 2000);
+  },
 };
