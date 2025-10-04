@@ -1,54 +1,66 @@
-const { getBalance, setBalance } = require("../utils/db");
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+const { getBalance, addBalance, removeBalance } = require('../utils/db');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
-  name: "rc",
+  name: 'rc',
   async execute(message, args) {
-    const bet = parseInt(args[0]);
-    if (isNaN(bet) || bet <= 0) return message.reply("⚠️ Usage: fd rc <amount>");
+    const userId = message.author.id;
+    const amount = parseInt(args[0]);
 
-    const bal = await getBalance(message.author.id);
-    if (bal.amount < bet) return message.reply("❌ You don't have enough Fundra Currency!");
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return message.reply('❌ Please provide a valid bet amount.');
+    }
 
-    // Pick 2 winning numbers (1–10)
-    const card1 = Math.floor(Math.random() * 10) + 1;
-    const card2 = Math.floor(Math.random() * 10) + 1;
-    const hidden = [card1, card2];
+    const balance = await getBalance(userId);
+    if (balance < amount) {
+      return message.reply('💸 You don’t have enough coins to play.');
+    }
 
-    const row = new ActionRowBuilder().addComponents(
-      ...Array.from({ length: 10 }, (_, i) =>
+    // deduct bet
+    await removeBalance(userId, amount);
+
+    // prepare game
+    const hiddenNumber = Math.floor(Math.random() * 10) + 1;
+    const winNumber = Math.floor(Math.random() * 10) + 1;
+
+    const row = new ActionRowBuilder()
+      .addComponents(
         new ButtonBuilder()
-          .setCustomId(`guess_${i + 1}`)
-          .setLabel(`${i + 1}`)
+          .setCustomId('pick')
+          .setLabel('Reveal Card')
           .setStyle(ButtonStyle.Primary)
-      )
-    );
+      );
 
-    const msg = await message.reply({
-      content: "🎲 **Guess a card between 1–10!**",
-      components: [row],
+    const gameMessage = await message.reply({
+      content: `🎴 A card is hidden between **1 - 10**.\nPress the button to reveal if you win!`,
+      components: [row]
     });
 
-    const filter = (i) => i.user.id === message.author.id;
-    try {
-      const interaction = await msg.awaitMessageComponent({ filter, time: 15000 });
+    const filter = (interaction) => interaction.user.id === userId;
+    const collector = gameMessage.createMessageComponentCollector({ filter, time: 15000, max: 1 });
 
-      const guess = parseInt(interaction.customId.split("_")[1]);
-      let result;
-      if (hidden.includes(guess)) {
-        await setBalance(message.author.id, bal.amount + bet);
-        result = `🎉 Correct! You won **${bet.toLocaleString("en-US")}**.`;
+    collector.on('collect', async (interaction) => {
+      if (!interaction.isButton()) return;
+
+      if (hiddenNumber === winNumber) {
+        const winnings = amount * 2;
+        await addBalance(userId, winnings);
+        return interaction.update({
+          content: `🎉 The hidden card was **${hiddenNumber}**!\n✅ You guessed correctly and won **${winnings} FC**!`,
+          components: []
+        });
       } else {
-        await setBalance(message.author.id, bal.amount - bet);
-        result = `😢 Wrong! You lost **${bet.toLocaleString("en-US")}**.`;
+        return interaction.update({
+          content: `😢 The hidden card was **${hiddenNumber}**.\n❌ You lost your bet of **${amount} FC**.`,
+          components: []
+        });
       }
+    });
 
-      await interaction.update({
-        content: `🃏 Hidden cards were **${card1}** and **${card2}**\n${result}`,
-        components: [],
-      });
-    } catch {
-      await msg.edit({ content: "⌛ Time’s up!", components: [] });
-    }
-  },
+    collector.on('end', collected => {
+      if (collected.size === 0) {
+        gameMessage.edit({ content: '⌛ Time ran out! You lost your bet.', components: [] });
+      }
+    });
+  }
 };
