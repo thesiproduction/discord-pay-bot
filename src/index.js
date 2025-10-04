@@ -1,55 +1,62 @@
-const { Client, GatewayIntentBits, Partials } = require("discord.js");
+// index.js
+const { Client, GatewayIntentBits, Collection } = require("discord.js");
 const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
-// Create Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
-  ],
-  partials: [Partials.Channel],
+    GatewayIntentBits.GuildMembers
+  ]
 });
 
-// Prefix
 const PREFIX = "fd";
+client.commands = new Collection();
 
-// Command handler
-client.commands = new Map();
-
-// Load all command files from ./src/commands
-const commandFiles = fs.readdirSync("./src/commands").filter(file => file.endsWith(".js"));
+// ✅ Load all commands from src/commands
+const commandsPath = path.join(__dirname, "src/commands");
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
 
 for (const file of commandFiles) {
-  const command = require(`./src/commands/${file}`);
-  client.commands.set(command.name, command);
-  console.log(`✅ Loaded command: ${command.name}`);
+  const command = require(path.join(commandsPath, file));
+  if (command.name) {
+    client.commands.set(command.name, command);
+    console.log(`Loaded command: ${command.name}`);
+  }
 }
 
-// Ready event
+// When bot is ready
 client.once("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-// Message event
+// Handle messages
 client.on("messageCreate", async (message) => {
-  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+  // Debugging: log all messages
+  console.log("Message received:", message.content);
 
-  // Remove prefix and split message
+  if (message.author.bot) return;
+  if (!message.content.startsWith(PREFIX)) return;
+
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const commandName = args.shift().toLowerCase();
 
-  if (!client.commands.has(commandName)) return;
+  const command = client.commands.get(commandName);
+  if (!command) {
+    console.log(`❌ Command not found: ${commandName}`);
+    return;
+  }
 
   try {
-    await client.commands.get(commandName).execute(client, message, args);
-  } catch (err) {
-    console.error(err);
-    message.reply("⚠️ There was an error running that command.");
+    await command.execute(message, args);
+  } catch (error) {
+    console.error(error);
+    message.reply("⚠️ There was an error executing that command.");
   }
 });
 
-// Start bot
-client.login(process.env.TOKEN);
+// Login bot
+client.login(process.env.DISCORD_TOKEN);
