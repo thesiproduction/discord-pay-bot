@@ -1,8 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
-const { createClient } = require("@supabase/supabase-js");
-require("dotenv").config();
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const pool = require("../../db");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -20,16 +17,23 @@ module.exports = {
     const email = interaction.options.getString("email");
     const screenshot = interaction.options.getAttachment("screenshot");
 
-    // Insert into Supabase
-    const { data, error } = await supabase.from("payments").insert([
-      { name, email, screenshot_url: screenshot.url }
-    ]);
+    try {
+      const query = `
+        INSERT INTO payments (name, email, screenshot_url, created_at)
+        VALUES ($1, $2, $3, NOW())
+      `;
+      await pool.query(query, [name, email, screenshot.url]);
 
-    if (error) {
-      console.error(error);
-      return interaction.reply({ content: "❌ Failed to save payment data.", ephemeral: true });
+      await interaction.reply({
+        content: `✅ Payment recorded for **${name}**. We'll review your proof shortly.`,
+        ephemeral: true
+      });
+    } catch (err) {
+      console.error("DB Error:", err);
+      await interaction.reply({
+        content: "❌ Failed to save payment data.",
+        ephemeral: true
+      });
     }
-
-    await interaction.reply({ content: `✅ Payment recorded for **${name}**. We'll review your proof shortly.`, ephemeral: true });
   }
 };
