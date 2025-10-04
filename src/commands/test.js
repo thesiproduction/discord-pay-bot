@@ -1,7 +1,8 @@
 module.exports = {
   name: "test",
-  description: "Test command",
+  description: "Simple test command",
   async execute(message, args) {
-    message.reply("✅ Bot is responding!");
+    message.reply("✅ Bot is alive and commands are working!");
   }
 };
+
