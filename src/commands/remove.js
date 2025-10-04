@@ -2,7 +2,7 @@ const { getBalance, setBalance } = require("../utils/db");
 
 // List of Discord user IDs who are allowed to use this command
 const ADMINS = [
-  "123456789012345678", // Replace with your ID
+  "1345060023755345982", // Replace with your ID
   "987654321098765432", // Add more IDs here
   "112233445566778899"  // You can keep adding as many as needed
 ];
