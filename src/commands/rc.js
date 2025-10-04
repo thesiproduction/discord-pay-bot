@@ -1,5 +1,4 @@
 const { getBalance, addBalance, removeBalance } = require('../utils/db');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 module.exports = {
   name: 'rc',
@@ -16,50 +15,47 @@ module.exports = {
       return message.reply('💸 You don’t have enough coins to play.');
     }
 
-    // deduct bet
+    // deduct bet immediately
     await removeBalance(userId, amount);
 
-    // prepare game
+    // hidden card
     const hiddenNumber = Math.floor(Math.random() * 10) + 1;
-    const winNumber = Math.floor(Math.random() * 10) + 1;
 
-    const row = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId('pick')
-          .setLabel('Reveal Card')
-          .setStyle(ButtonStyle.Primary)
-      );
+    // shuffle animation (fake cards)
+    const shuffleMsg = await message.reply('🎴 Shuffling cards...');
+    let count = 0;
+    const shuffleInterval = setInterval(async () => {
+      count++;
+      const fakeNum = Math.floor(Math.random() * 10) + 1;
+      await shuffleMsg.edit(`🎴 Shuffling... Card shows: **${fakeNum}**`);
+      if (count >= 5) { // stop after 5 flips
+        clearInterval(shuffleInterval);
+        shuffleMsg.edit('🎴 Cards shuffled! Guess a number between **1–10** in the next 10 seconds.');
+      }
+    }, 1000);
 
-    const gameMessage = await message.reply({
-      content: `🎴 A card is hidden between **1 - 10**.\nPress the button to reveal if you win!`,
-      components: [row]
-    });
+    // collect user guess
+    const filter = m => m.author.id === userId;
+    const collector = message.channel.createMessageCollector({ filter, time: 10000, max: 1 });
 
-    const filter = (interaction) => interaction.user.id === userId;
-    const collector = gameMessage.createMessageComponentCollector({ filter, time: 15000, max: 1 });
+    collector.on('collect', async (msg) => {
+      const guess = parseInt(msg.content);
+      if (!guess || guess < 1 || guess > 10) {
+        return msg.reply('❌ Invalid guess! Must be a number between 1 and 10.');
+      }
 
-    collector.on('collect', async (interaction) => {
-      if (!interaction.isButton()) return;
-
-      if (hiddenNumber === winNumber) {
+      if (guess === hiddenNumber) {
         const winnings = amount * 2;
         await addBalance(userId, winnings);
-        return interaction.update({
-          content: `🎉 The hidden card was **${hiddenNumber}**!\n✅ You guessed correctly and won **${winnings} FC**!`,
-          components: []
-        });
+        msg.reply(`🎉 Correct! The hidden card was **${hiddenNumber}**.\n✅ You won **${winnings} FC**!`);
       } else {
-        return interaction.update({
-          content: `😢 The hidden card was **${hiddenNumber}**.\n❌ You lost your bet of **${amount} FC**.`,
-          components: []
-        });
+        msg.reply(`😢 Wrong! The hidden card was **${hiddenNumber}**.\n❌ You lost your bet of **${amount} FC**.`);
       }
     });
 
     collector.on('end', collected => {
       if (collected.size === 0) {
-        gameMessage.edit({ content: '⌛ Time ran out! You lost your bet.', components: [] });
+        message.reply(`⌛ Time ran out! The hidden card was **${hiddenNumber}**. You lost your bet of ${amount} FC.`);
       }
     });
   }
