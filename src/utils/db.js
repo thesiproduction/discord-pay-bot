@@ -3,12 +3,11 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// ✅ Get balance of a user
 async function getBalance(userId) {
   const { data, error } = await supabase
     .from("balances")
     .select("amount")
-    .eq("user_id", userId)   // 👈 FIXED (snake_case)
+    .eq("user_id", userId)
     .single();
 
   if (error && error.code !== "PGRST116") {
@@ -19,40 +18,28 @@ async function getBalance(userId) {
   return data ? data.amount : 0;
 }
 
-// ✅ Add balance to a user
-async function addBalance(userId, amount) {
-  const current = await getBalance(userId);
-  const newBalance = current + amount;
-
+async function setBalance(userId, amount) {
   const { error } = await supabase
     .from("balances")
-    .upsert({ user_id: userId, amount: newBalance }, { onConflict: "user_id" });
+    .upsert({ user_id: userId, amount }, { onConflict: "user_id" });
 
   if (error) {
     console.error(error);
     return null;
   }
 
-  return newBalance;
+  return amount;
 }
 
-// ✅ Subtract balance
+async function addBalance(userId, amount) {
+  const current = await getBalance(userId);
+  return await setBalance(userId, current + amount);
+}
+
 async function subtractBalance(userId, amount) {
   const current = await getBalance(userId);
   if (current < amount) return null;
-
-  const newBalance = current - amount;
-
-  const { error } = await supabase
-    .from("balances")
-    .upsert({ user_id: userId, amount: newBalance }, { onConflict: "user_id" });
-
-  if (error) {
-    console.error(error);
-    return null;
-  }
-
-  return newBalance;
+  return await setBalance(userId, current - amount);
 }
 
-module.exports = { getBalance, addBalance, subtractBalance };
+module.exports = { getBalance, setBalance, addBalance, subtractBalance };
