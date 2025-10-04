@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const db = require("../db.js"); // ✅ Correct path
+const db = require("../db"); // ✅ correct path
 
 module.exports = {
   name: "rc",
@@ -12,18 +12,15 @@ module.exports = {
       return message.reply("❌ Please enter a valid bet amount.");
     }
 
-    // Get balance
     const balance = await db.getBalance(userId);
     if (balance < bet) {
       return message.reply("❌ You don't have enough balance to play.");
     }
 
-    // Decide if the hidden card will be odd or even
-    const card = Math.floor(Math.random() * 10) + 1; // 1–10
-    const type = card % 2 === 0 ? "even" : "odd"; // what card actually is
+    const card = Math.floor(Math.random() * 10) + 1;
+    const type = card % 2 === 0 ? "even" : "odd";
     const shownNumbers = type === "even" ? [2, 4, 6, 8, 10] : [1, 3, 5, 7, 9];
 
-    // Ask player to guess
     const embed = new EmbedBuilder()
       .setTitle("🎴 RC Game")
       .setDescription(
@@ -35,7 +32,6 @@ module.exports = {
 
     await message.reply({ embeds: [embed] });
 
-    // Collect player response
     const filter = (m) =>
       m.author.id === userId &&
       !isNaN(m.content) &&
