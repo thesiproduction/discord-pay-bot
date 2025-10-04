@@ -1,62 +1,65 @@
-// index.js
-const { Client, GatewayIntentBits, Collection } = require("discord.js");
-const fs = require("fs");
-const path = require("path");
-require("dotenv").config();
+// src/index.js
+const { Client, GatewayIntentBits } = require('discord.js');
+require('dotenv').config();
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
-  ]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
 });
 
-const PREFIX = "fd";
-client.commands = new Collection();
+// Prefix for commands
+const PREFIX = "fd ";
 
-// ✅ Load all commands from src/commands
-const commandsPath = path.join(__dirname, "src/commands");
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith(".js"));
-
-for (const file of commandFiles) {
-  const command = require(path.join(commandsPath, file));
-  if (command.name) {
-    client.commands.set(command.name, command);
-    console.log(`Loaded command: ${command.name}`);
-  }
-}
-
-// When bot is ready
-client.once("ready", () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
+// Bot ready event (new in discord.js v15+)
+client.once('clientReady', () => {
+    console.log(`✅ Logged in as ${client.user.tag}`);
 });
 
-// Handle messages
-client.on("messageCreate", async (message) => {
-  // Debugging: log all messages
-  console.log("Message received:", message.content);
+// Handle prefix commands
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
-  if (message.author.bot) return;
-  if (!message.content.startsWith(PREFIX)) return;
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
 
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const commandName = args.shift().toLowerCase();
+    // Test command
+    if (command === "ping") {
+        return message.reply("🏓 Pong!");
+    }
 
-  const command = client.commands.get(commandName);
-  if (!command) {
-    console.log(`❌ Command not found: ${commandName}`);
-    return;
-  }
+    // Show cash
+    if (command === "cash") {
+        return message.reply("💰 You have 1000 coins (demo).");
+    }
 
-  try {
-    await command.execute(message, args);
-  } catch (error) {
-    console.error(error);
-    message.reply("⚠️ There was an error executing that command.");
-  }
+    // Pay coins
+    if (command === "pay") {
+        const user = message.mentions.users.first();
+        const amount = args[1];
+        if (!user || !amount) {
+            return message.reply("❌ Usage: `fd pay @user <amount>`");
+        }
+        return message.reply(`✅ Paid ${amount} coins to ${user.username}`);
+    }
+
+    // Example coinflip (cf) command
+    if (command === "cf") {
+        const result = Math.random() < 0.5 ? "Heads 🎲" : "Tails 🎲";
+        return message.reply(`Coinflip result: **${result}**`);
+    }
+
+    // Admin give command
+    if (command === "give") {
+        const user = message.mentions.users.first();
+        const amount = args[1];
+        if (!user || !amount) {
+            return message.reply("❌ Usage: `fd give @user <amount>`");
+        }
+        return message.reply(`✅ Gave ${amount} coins to ${user.username} (admin command).`);
+    }
 });
 
-// Login bot
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.TOKEN);
